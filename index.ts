@@ -3,15 +3,30 @@ import express from "express";
 import { Server } from "socket.io";
 import { RoomManager } from "./RoomManager";
 import { nanoid } from "nanoid";
-import { clerkClient, requireAuth, getAuth } from "@clerk/express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { clerkMiddleware } from "@clerk/express";
+import { requireAuth, getAuth } from "@clerk/express";
+
+dotenv.config();
 
 const app = express();
+app.use(clerkMiddleware());
 const httpServer = createServer(app);
 app.use(express.json());
+app.use(
+  cors({
+    origin: ["http://localhost:3000"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ["*"],
+    origin: ["http://localhost:3000"],
+    methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 const roomManager = RoomManager.getInstance();
@@ -22,21 +37,11 @@ app.get("/", (req, res) => {
 });
 
 app.post("/create-room", requireAuth(), async (req, res) => {
-  const { adminId } = req.body;
+  console.log("Creating room with body:", req.body);
   const { userId } = getAuth(req);
-  if (!userId) {
-    return res.status(401).json({ error: "Unauthorized" });
-  }
-  if (userId !== adminId) {
-    return res
-      .status(403)
-      .json({ error: "You are not authorized to create this room" });
-  }
-  if (!adminId) {
-    return res.status(400).json({ error: "Admin ID is required" });
-  }
-  const user = await clerkClient.users.getUser(userId);
-  console.log(user);
+  console.log("Authenticated user ID:", userId);
+  const { adminId } = req.body;
+
   const roomId = nanoid(10);
   try {
     const room = roomManager.createRoom(
@@ -44,10 +49,9 @@ app.post("/create-room", requireAuth(), async (req, res) => {
       adminId,
       req.protocol + "://" + req.get("host")
     );
-    console.log("room Details", room);
     return res.status(201).json({
       roomId,
-      url: `${req.protocol}://${req.get("host")}/room/${roomId}`,
+      url: `${req.protocol}://${req.get("host")}/controller/${roomId}`,
     });
   } catch (error) {
     return res.status(500).json({ error: "Failed to create room" });
