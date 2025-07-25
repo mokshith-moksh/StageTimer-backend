@@ -1,7 +1,7 @@
 // Room.ts
 
 import { Server } from "socket.io";
-
+import { v4 as uuidv4 } from "uuid";
 type Timer = {
   id: string;
   name: string;
@@ -17,14 +17,7 @@ export class Room {
   private adminSocketId: string | null = null;
   private clientSocketIds: Set<string> = new Set();
 
-  private timers: Timer[] = [
-    {
-      id: "default",
-      name: "Default Timer",
-      duration: 60 * 10,
-      isRunning: false,
-    },
-  ];
+  private timers: Timer[] = [];
   private currentTimerId: string | null = null;
   private timerInterval: NodeJS.Timeout | null = null;
 
@@ -68,8 +61,15 @@ export class Room {
 
   // === TIMER HANDLING ===
 
-  public addTimer(timer: Timer) {
-    this.timers.push({ ...timer, isRunning: false });
+  public addTimer(duration: number, name: string) {
+    const timer: Timer = {
+      id: uuidv4(),
+      name,
+      duration,
+      isRunning: false,
+    };
+    this.timers.push(timer);
+    return timer;
   }
 
   public deleteTimer(timerId: string) {

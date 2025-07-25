@@ -71,9 +71,35 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     socket.emit("room-joined", room.getState());
 
-    const count = room.getConnectedClientCount();
+    const roomState = room.getState();
     if (room.isAdminOnline()) {
-      io.to(room.roomId).emit("connected-client-count", { count });
+      io.to(room.roomId).emit("RoomState", { roomState });
+    }
+  });
+  socket.on("add-timer", ({ roomId, duration, name }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) {
+      return socket.emit("error", { message: "Room not found" });
+    }
+    if (name.length == 0) {
+      name = "Custom Timer";
+    }
+    // need to add the security for timer and name - REMEMBER PLZ
+
+    const timer = room.addTimer(duration, name);
+    io.to(room.roomId).emit("timer-added", timer);
+  });
+  socket.on("start-timer", ({ roomId, timerId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) {
+      return socket.emit("error", { message: "Room not found" });
+    }
+
+    try {
+      room.startTimer(timerId); // ← this triggers setInterval and emits timerTick
+      io.to(room.roomId).emit("timer-started", { timerId });
+    } catch (err) {
+      socket.emit("error", { message: (err as Error).message });
     }
   });
 
