@@ -17,7 +17,14 @@ export class Room {
   private adminSocketId: string | null = null;
   private clientSocketIds: Set<string> = new Set();
 
-  private timers: Timer[] = [];
+  private timers: Timer[] = [
+    {
+      id: "default",
+      name: "Default Timer",
+      duration: 60 * 10,
+      isRunning: false,
+    },
+  ];
   private currentTimerId: string | null = null;
   private timerInterval: NodeJS.Timeout | null = null;
 
