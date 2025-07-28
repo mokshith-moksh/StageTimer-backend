@@ -66,16 +66,16 @@ io.on("connection", (socket) => {
     if (!room) {
       return socket.emit("error", { message: "Room not found" });
     }
-
     room.addClient(socket.id, role);
     socket.join(roomId);
     socket.emit("room-joined", room.getState());
-
     const roomState = room.getState();
+    console.log(room.isAdminOnline());
     if (room.isAdminOnline()) {
-      io.to(room.roomId).emit("RoomState", { roomState });
+      io.to(room.roomId).emit("roomState", { roomState });
     }
   });
+
   socket.on("add-timer", ({ roomId, duration, name }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) {
@@ -92,6 +92,7 @@ io.on("connection", (socket) => {
   socket.on("start-timer", ({ roomId, timerId }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) {
+      console.log(`Room ${roomId} not found for timer start`);
       return socket.emit("error", { message: "Room not found" });
     }
 
@@ -106,11 +107,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     for (const room of roomManager.getAllRooms()) {
       room.removeClient(socket.id);
-
-      if (room.isAdminOnline()) {
-        const count = room.getConnectedClientCount();
-        io.to(room.roomId).emit("connected-client-count", { count });
-      }
+      io.to(room.roomId).emit("roomState", { roomState: room.getState() });
     }
     roomManager.cleanupEmptyRooms();
   });
