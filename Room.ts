@@ -1,12 +1,12 @@
-// Room.ts
-
 import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
-type Timer = {
+
+export type Timer = {
   id: string;
   name: string;
-  duration: number;
+  duration: number; // total original duration (constant)
   startTime?: number;
+  pausedAt?: number; // timestamp when paused
   isRunning: boolean;
 };
 
@@ -18,19 +18,17 @@ export class Room {
   private clientSocketIds: Set<string> = new Set();
 
   private timers: Timer[] = [];
-  private currentTimerId: string | null = null;
-  private timerInterval: NodeJS.Timeout | null = null;
+  private timerIntervals: Map<string, NodeJS.Timeout> = new Map();
 
   private io: Server;
 
-  constructor(roomId: string, adminId: string, baseUrl: string, io: Server) {
+  constructor(roomId: string, adminId: string, _baseUrl: string, io: Server) {
     this.roomId = roomId;
     this.adminId = adminId;
     this.io = io;
   }
 
   // === CONNECTION TRACKING ===
-
   public addClient(socketId: string, role: "admin" | "client") {
     if (role === "admin") {
       this.adminSocketId = socketId;
@@ -60,7 +58,6 @@ export class Room {
   }
 
   // === TIMER HANDLING ===
-
   public addTimer(duration: number, name: string) {
     const timer: Timer = {
       id: uuidv4(),
@@ -73,23 +70,31 @@ export class Room {
   }
 
   public deleteTimer(timerId: string) {
+    this.pauseTimer(timerId);
     this.timers = this.timers.filter((t) => t.id !== timerId);
-    if (this.currentTimerId === timerId) {
-      this.currentTimerId = null;
-    }
   }
 
   public startTimer(timerId: string) {
     const timer = this.timers.find((t) => t.id === timerId);
     if (!timer) throw new Error("Timer not found");
+    if (timer.isRunning) return;
 
-    timer.startTime = Date.now();
+    const now = Date.now();
+
+    if (timer.pausedAt) {
+      // Resume from paused state
+      const pausedDuration = (timer.pausedAt - (timer.startTime || 0)) / 1000;
+      timer.startTime = now - pausedDuration * 1000;
+      delete timer.pausedAt;
+    } else {
+      // Start fresh or restart
+      timer.startTime = now;
+    }
+
     timer.isRunning = true;
-    this.currentTimerId = timerId;
 
-    this.timerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - (timer.startTime ?? 0)) / 1000);
-      const remaining = Math.max(0, timer.duration - elapsed);
+    const interval = setInterval(() => {
+      const remaining = this.getRemainingTime(timer);
 
       this.io.to(this.roomId).emit("timerTick", {
         timerId,
@@ -98,32 +103,87 @@ export class Room {
       });
 
       if (remaining <= 0) {
-        this.stopCurrentTimer();
+        this.pauseTimer(timerId);
         this.io.to(this.roomId).emit("timerEnded", { timerId });
       }
     }, 1000);
+
+    // Clear any existing interval (just in case)
+    const existingInterval = this.timerIntervals.get(timerId);
+    if (existingInterval) clearInterval(existingInterval);
+
+    this.timerIntervals.set(timerId, interval);
+    this.io.to(this.roomId).emit("timerStarted", { timerId });
   }
 
-  public stopCurrentTimer() {
-    if (this.timerInterval) clearInterval(this.timerInterval);
+  public pauseTimer(timerId: string) {
+    const timer = this.timers.find((t) => t.id === timerId);
+    if (!timer || !timer.isRunning) return;
 
-    const timer = this.timers.find((t) => t.id === this.currentTimerId);
-    if (timer) timer.isRunning = false;
+    timer.isRunning = false;
+    timer.pausedAt = Date.now();
 
-    this.currentTimerId = null;
-    this.timerInterval = null;
+    const interval = this.timerIntervals.get(timerId);
+    if (interval) {
+      clearInterval(interval);
+      this.timerIntervals.delete(timerId);
+    }
+
+    this.io.to(this.roomId).emit("timerPaused", { timerId });
+  }
+
+  public resetTimer(timerId: string) {
+    const timer = this.timers.find((t) => t.id === timerId);
+    if (!timer) return;
+
+    this.pauseTimer(timerId);
+    timer.startTime = undefined;
+    timer.pausedAt = undefined;
+    timer.isRunning = false;
+
+    this.io.to(this.roomId).emit("timerReset", { timerId });
+  }
+
+  public restartTimer(timerId: string) {
+    const timer = this.timers.find((t) => t.id === timerId);
+    if (!timer) return;
+
+    this.resetTimer(timerId);
+    this.startTimer(timerId);
+  }
+
+  private getRemainingTime(timer: Timer): number {
+    if (!timer.isRunning) {
+      if (timer.pausedAt && timer.startTime) {
+        // Paused state - return the time it was at when paused
+        return timer.duration - (timer.pausedAt - timer.startTime) / 1000;
+      }
+      // Not running and not paused - return full duration
+      return timer.duration;
+    }
+
+    // Running state - calculate remaining time
+    if (!timer.startTime) return timer.duration;
+    const elapsed = (Date.now() - timer.startTime) / 1000;
+    return Math.max(0, timer.duration - elapsed);
   }
 
   // === STATE ===
-
   public getState() {
+    const timersWithRemaining = this.timers.map((timer) => {
+      const remaining = this.getRemainingTime(timer);
+      return {
+        ...timer,
+        remaining,
+      };
+    });
+
     return {
       roomId: this.roomId,
       adminId: this.adminId,
       adminOnline: this.isAdminOnline(),
       clientCount: this.getConnectedClientCount(),
-      timers: this.timers,
-      currentTimerId: this.currentTimerId,
+      timers: timersWithRemaining,
     };
   }
 }

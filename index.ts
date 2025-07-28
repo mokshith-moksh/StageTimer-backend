@@ -5,14 +5,13 @@ import { RoomManager } from "./RoomManager";
 import { nanoid } from "nanoid";
 import cors from "cors";
 import dotenv from "dotenv";
-import { clerkMiddleware } from "@clerk/express";
-import { requireAuth, getAuth } from "@clerk/express";
+import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
 import { Room } from "./Room";
+
 dotenv.config();
 
 const app = express();
 app.use(clerkMiddleware());
-const httpServer = createServer(app);
 app.use(express.json());
 app.use(
   cors({
@@ -22,6 +21,8 @@ app.use(
   })
 );
 
+const httpServer = createServer(app);
+
 const io = new Server(httpServer, {
   cors: {
     origin: ["http://localhost:3000"],
@@ -29,6 +30,7 @@ const io = new Server(httpServer, {
     credentials: true,
   },
 });
+
 const roomManager = RoomManager.getInstance();
 roomManager.initialize(io);
 
@@ -37,9 +39,7 @@ app.get("/", (req, res) => {
 });
 
 app.post("/create-room", requireAuth(), async (req, res) => {
-  console.log("Creating room with body:", req.body);
   const { userId } = getAuth(req);
-  console.log("Authenticated user ID:", userId);
   const { adminId } = req.body;
 
   const roomId = nanoid(10);
@@ -47,7 +47,7 @@ app.post("/create-room", requireAuth(), async (req, res) => {
     const room: Room = roomManager.createRoom(
       roomId,
       adminId,
-      req.protocol + "://" + req.get("host")
+      `${req.protocol}://${req.get("host")}`
     );
     return res.status(201).json({
       roomId,
@@ -63,45 +63,74 @@ io.on("connection", (socket) => {
 
   socket.on("join-room", ({ roomId, role }) => {
     const room = roomManager.getRoom(roomId);
-    if (!room) {
-      return socket.emit("error", { message: "Room not found" });
-    }
+    if (!room) return socket.emit("error", { message: "Room not found" });
+
     room.addClient(socket.id, role);
     socket.join(roomId);
-    socket.emit("room-joined", room.getState());
     const roomState = room.getState();
-    console.log(room.isAdminOnline());
-    if (room.isAdminOnline()) {
-      io.to(room.roomId).emit("roomState", { roomState });
-    }
+    socket.emit("room-joined", roomState);
+
+    io.to(room.roomId).emit("roomState", { roomState });
   });
 
   socket.on("add-timer", ({ roomId, duration, name }) => {
     const room = roomManager.getRoom(roomId);
-    if (!room) {
-      return socket.emit("error", { message: "Room not found" });
-    }
-    if (name.length == 0) {
+    if (!room) return socket.emit("error", { message: "Room not found" });
+
+    if (!name || typeof name !== "string" || name.trim().length === 0) {
       name = "Custom Timer";
     }
-    // need to add the security for timer and name - REMEMBER PLZ
+
+    if (typeof duration !== "number" || duration <= 0) {
+      return socket.emit("error", { message: "Invalid duration" });
+    }
 
     const timer = room.addTimer(duration, name);
     io.to(room.roomId).emit("timer-added", timer);
   });
+
   socket.on("start-timer", ({ roomId, timerId }) => {
     const room = roomManager.getRoom(roomId);
-    if (!room) {
-      console.log(`Room ${roomId} not found for timer start`);
-      return socket.emit("error", { message: "Room not found" });
-    }
+    if (!room) return socket.emit("error", { message: "Room not found" });
 
     try {
-      room.startTimer(timerId); // ← this triggers setInterval and emits timerTick
+      room.startTimer(timerId);
       io.to(room.roomId).emit("timer-started", { timerId });
     } catch (err) {
       socket.emit("error", { message: (err as Error).message });
     }
+  });
+
+  socket.on("pause-timer", ({ roomId, timerId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) return socket.emit("error", { message: "Room not found" });
+
+    room.pauseTimer(timerId);
+    io.to(room.roomId).emit("timer-paused", { timerId });
+  });
+
+  socket.on("reset-timer", ({ roomId, timerId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) return socket.emit("error", { message: "Room not found" });
+
+    room.resetTimer(timerId);
+    io.to(room.roomId).emit("timer-reset", { timerId });
+  });
+
+  socket.on("restart-timer", ({ roomId, timerId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) return socket.emit("error", { message: "Room not found" });
+
+    room.restartTimer(timerId);
+    io.to(room.roomId).emit("timer-restarted", { timerId });
+  });
+
+  socket.on("delete-timer", ({ roomId, timerId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) return socket.emit("error", { message: "Room not found" });
+
+    room.deleteTimer(timerId);
+    io.to(room.roomId).emit("timer-deleted", { timerId });
   });
 
   socket.on("disconnect", () => {
