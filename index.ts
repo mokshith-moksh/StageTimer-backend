@@ -86,6 +86,7 @@ io.on("connection", (socket) => {
     }
 
     const timer = room.addTimer(duration, name);
+    console.log(timer);
     io.to(room.roomId).emit("timer-added", timer);
   });
 
@@ -133,11 +134,19 @@ io.on("connection", (socket) => {
     io.to(room.roomId).emit("timer-deleted", { timerId });
   });
 
+  socket.on("setTimerTime", ({ roomId, timerId, newTime }) => {
+    const room = roomManager.getRoom(roomId);
+    if (room && room.isAdminOnline()) {
+      room.setTimerTime(timerId, newTime);
+    }
+  });
+
   socket.on("disconnect", () => {
     for (const room of roomManager.getAllRooms()) {
       room.removeClient(socket.id);
       io.to(room.roomId).emit("roomState", { roomState: room.getState() });
     }
+    console.log("Client disconnected:", socket.id);
     roomManager.cleanupEmptyRooms();
   });
 });

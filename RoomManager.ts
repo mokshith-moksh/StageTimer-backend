@@ -1,5 +1,3 @@
-// RoomManager.ts
-
 import { Room } from "./Room";
 import { Server } from "socket.io";
 
@@ -7,6 +5,9 @@ export class RoomManager {
   private static instance: RoomManager;
   private rooms: Map<string, Room> = new Map();
   private io!: Server;
+
+  // Only rooms with active timers
+  private activeRooms: Set<Room> = new Set();
 
   private constructor() {}
 
@@ -19,6 +20,14 @@ export class RoomManager {
 
   public initialize(io: Server) {
     this.io = io;
+
+    // Tick only active rooms every second
+    setInterval(() => {
+      const now = Date.now();
+      for (const room of this.activeRooms) {
+        room.tickTimers(now);
+      }
+    }, 1000);
   }
 
   public createRoom(roomId: string, adminId: string, baseUrl: string): Room {
@@ -36,6 +45,10 @@ export class RoomManager {
   }
 
   public deleteRoom(roomId: string) {
+    const room = this.rooms.get(roomId);
+    if (room) {
+      this.activeRooms.delete(room);
+    }
     this.rooms.delete(roomId);
   }
 
@@ -49,6 +62,14 @@ export class RoomManager {
         this.deleteRoom(roomId);
       }
     }
+  }
+
+  public markRoomActive(room: Room) {
+    this.activeRooms.add(room);
+  }
+
+  public markRoomInactive(room: Room) {
+    this.activeRooms.delete(room);
   }
 
   public getAllRooms(): Room[] {
