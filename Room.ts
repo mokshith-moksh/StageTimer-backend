@@ -9,7 +9,6 @@ export type Timer = {
   startTime?: number;
   pausedAt?: number;
   isRunning: boolean;
-  markers: number[];
 };
 
 export class Room {
@@ -64,81 +63,11 @@ export class Room {
       name,
       duration,
       isRunning: false,
-      markers: this.generateProfessionalMarkers(duration),
     };
 
     this.timers.push(timer);
     this.io.to(this.roomId).emit("timer-added", timer);
     return timer;
-  }
-
-  private generateProfessionalMarkers(duration: number): number[] {
-    if (duration <= 0) return [];
-
-    const markers = new Set<number>();
-    const MIN_MARKERS = 5;
-    const MAX_MARKERS = 15;
-    const COUNTDOWN_START = 10;
-
-    const logDuration = Math.log10(duration);
-    let baseInterval = Math.pow(10, Math.floor(logDuration) - 1);
-
-    if (baseInterval > 60) baseInterval = 60 * Math.round(baseInterval / 60);
-    baseInterval = this.nearestHumanInterval(baseInterval);
-
-    for (
-      let t = baseInterval;
-      t < duration - COUNTDOWN_START;
-      t += baseInterval
-    ) {
-      markers.add(t);
-    }
-
-    const fractions = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
-    fractions.forEach((frac) => {
-      const marker = Math.round(duration * frac);
-      if (marker > 0 && marker < duration) markers.add(marker);
-    });
-
-    if (duration > COUNTDOWN_START) {
-      for (let t = Math.max(0, duration - COUNTDOWN_START); t < duration; t++) {
-        markers.add(t);
-      }
-    } else {
-      for (let t = 1; t < duration; t++) markers.add(t);
-    }
-
-    const currentCount = markers.size;
-    if (currentCount < MIN_MARKERS && baseInterval > 1) {
-      const secondaryInterval = Math.max(1, Math.floor(baseInterval / 2));
-      for (let t = secondaryInterval; t < duration; t += secondaryInterval) {
-        if (t % baseInterval !== 0) markers.add(t);
-        if (markers.size >= MIN_MARKERS) break;
-      }
-    } else if (currentCount > MAX_MARKERS) {
-      const sorted = Array.from(markers).sort((a, b) => a - b);
-      const important = new Set(
-        sorted.filter(
-          (t) =>
-            t >= duration - COUNTDOWN_START ||
-            fractions.some((f) => Math.abs(t - duration * f) < baseInterval / 2)
-        )
-      );
-      const keepInterval = Math.ceil(sorted.length / MAX_MARKERS);
-      sorted.forEach((t, i) => {
-        if (important.has(t) || i % keepInterval === 0) return;
-        markers.delete(t);
-      });
-    }
-
-    return Array.from(markers).sort((a, b) => a - b);
-  }
-
-  private nearestHumanInterval(seconds: number): number {
-    const intervals = [1, 2, 5, 10, 15, 20, 30, 60, 120, 300, 600, 900, 1800];
-    return intervals.reduce((prev, curr) =>
-      Math.abs(curr - seconds) < Math.abs(prev - seconds) ? curr : prev
-    );
   }
 
   public deleteTimer(timerId: string) {
@@ -223,29 +152,33 @@ export class Room {
 
     const wasRunning = timer.isRunning;
     if (wasRunning) {
-      // Pause without emitting events to avoid UI flicker
+      // Pause without emitting events
       timer.isRunning = false;
       RoomManager.getInstance().markRoomInactive(this);
     }
 
     const now = Date.now();
-    const elapsed = timer.duration - newTime;
-    timer.startTime = now - elapsed * 1000;
-    timer.pausedAt = undefined;
 
     if (wasRunning) {
-      // Restart without emitting duplicate events
+      const elapsed = timer.duration - newTime;
+      timer.startTime = now - elapsed * 1000;
+      timer.pausedAt = undefined;
+
+      // Restart without duplicate events
       timer.isRunning = true;
       RoomManager.getInstance().markRoomActive(this);
-      // Force an immediate tick update
       this.tickTimers(now);
+    } else {
+      // Paused: update pausedAt and startTime properly
+      timer.pausedAt = now;
+      timer.startTime = now - (timer.duration - newTime) * 1000;
     }
 
     const remaining = this.getRemainingTime(timer);
     this.io.to(this.roomId).emit("timerTimeAdjusted", {
       timerId,
       remaining,
-      isRunning: timer.isRunning, // Include current running state
+      isRunning: timer.isRunning,
     });
   }
 
