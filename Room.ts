@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { RoomManager } from "./RoomManager";
+import { text } from "express";
 
 export type Timer = {
   id: string;
@@ -18,6 +19,11 @@ export class Room {
   private adminSocketId: string | null = null;
   private clientSocketIds: Set<string> = new Set();
   private timers: Timer[] = [];
+  private message = {
+    text: "",
+    color: "#000000",
+    backgroundColor: "#ffffff",
+  };
 
   private io: Server;
 
@@ -25,6 +31,29 @@ export class Room {
     this.roomId = roomId;
     this.adminId = adminId;
     this.io = io;
+  }
+
+  // === MESSAGE HANDLING ===
+  public setMessage(
+    text: string,
+    color: string,
+    backgroundColor: string,
+    socketId: string
+  ) {
+    if (socketId !== this.adminSocketId) {
+      return;
+    }
+    if (!text || !color || !backgroundColor) {
+      return;
+    }
+    try {
+      this.message = { text, color, backgroundColor };
+      this.io.to(this.roomId).emit("messageUpdated", this.message);
+      console.log("message sent");
+    } catch (error) {
+      console.error("Error setting message:", error);
+      return;
+    }
   }
 
   // === CONNECTION TRACKING ===

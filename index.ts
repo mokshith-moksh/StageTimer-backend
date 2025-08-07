@@ -141,6 +141,13 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("setMessage", ({ roomId, text, color, backgroundColor }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) return socket.emit("error", { message: "Room not found" });
+    console.log("Setting message:", text, color, backgroundColor);
+    room.setMessage(text, color, backgroundColor, socket.id);
+  });
+
   socket.on("disconnect", () => {
     for (const room of roomManager.getAllRooms()) {
       room.removeClient(socket.id);
