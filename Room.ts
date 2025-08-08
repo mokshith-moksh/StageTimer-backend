@@ -20,10 +20,11 @@ export class Room {
   private clientSocketIds: Set<string> = new Set();
   private timers: Timer[] = [];
   private message = {
-    text: "",
+    text: "Welcome",
     color: "#000000",
     backgroundColor: "#ffffff",
   };
+  private flickering: boolean | null = null;
 
   private io: Server;
 
@@ -54,6 +55,14 @@ export class Room {
       console.error("Error setting message:", error);
       return;
     }
+  }
+
+  public toggleFlicker(flickering: boolean, socketId: string) {
+    if (socketId !== this.adminSocketId) {
+      return;
+    }
+    this.flickering = flickering;
+    this.io.to(this.roomId).emit("flickeringToggled", this.flickering);
   }
 
   // === CONNECTION TRACKING ===
@@ -239,6 +248,8 @@ export class Room {
       adminOnline: this.isAdminOnline(),
       clientCount: this.getConnectedClientCount(),
       timers: timersWithRemaining,
+      message: this.message,
+      flickering: this.flickering,
     };
   }
 }

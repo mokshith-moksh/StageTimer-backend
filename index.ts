@@ -25,7 +25,7 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: ["http://localhost:3000"],
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -146,6 +146,12 @@ io.on("connection", (socket) => {
     if (!room) return socket.emit("error", { message: "Room not found" });
     console.log("Setting message:", text, color, backgroundColor);
     room.setMessage(text, color, backgroundColor, socket.id);
+  });
+
+  socket.on("toggleFlicker", ({ roomId, flickering }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) return socket.emit("error", { message: "Room not found" });
+    room.toggleFlicker(flickering, socket.id);
   });
 
   socket.on("disconnect", () => {
