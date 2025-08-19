@@ -6,7 +6,7 @@ import { nanoid } from "nanoid";
 import cors from "cors";
 import dotenv from "dotenv";
 import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
-import { Room } from "./Room";
+import { Room, type DisplayNames } from "./Room";
 
 dotenv.config();
 
@@ -49,6 +49,7 @@ app.post("/create-room", requireAuth(), async (req, res) => {
       adminId,
       `${req.protocol}://${req.get("host")}`
     );
+    console.log("room Created Succussfully", room.roomId);
     return res.status(201).json({
       roomId,
       url: `${req.protocol}://${req.get("host")}/controller/${roomId}`,
@@ -86,8 +87,7 @@ io.on("connection", (socket) => {
     }
 
     const timer = room.addTimer(duration, name);
-    console.log(timer);
-    io.to(room.roomId).emit("timer-added", timer);
+    console.log("timer", timer);
   });
 
   socket.on("start-timer", ({ roomId, timerId }) => {
@@ -141,12 +141,37 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("setMessage", ({ roomId, text, color, backgroundColor }) => {
+  socket.on("setDisplayName", ({ roomId, text, color, bold }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
-    console.log("Setting message:", text, color, backgroundColor);
-    room.setMessage(text, color, backgroundColor, socket.id);
+    room.displayName(text, color, bold, socket.id);
   });
+
+  socket.on(
+    "setNames",
+    ({ roomId, names }: { roomId: string; names: DisplayNames[] }) => {
+      const room = roomManager.getRoom(roomId);
+      if (!room) return socket.emit("error", { message: "Room not found" });
+      room.setNames(names, socket.id);
+    }
+  );
+
+  socket.on(
+    "updateNames",
+    ({
+      roomId,
+      index,
+      updates,
+    }: {
+      roomId: string;
+      index: number;
+      updates: Partial<DisplayNames>;
+    }) => {
+      const room = roomManager.getRoom(roomId);
+      if (!room) return socket.emit("error", { message: "Room not found" });
+      room.updateNames(index, updates, socket.id);
+    }
+  );
 
   socket.on("toggleFlicker", ({ roomId, flickering }) => {
     const room = roomManager.getRoom(roomId);

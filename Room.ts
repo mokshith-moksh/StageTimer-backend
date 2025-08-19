@@ -1,7 +1,6 @@
 import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { RoomManager } from "./RoomManager";
-import { text } from "express";
 
 export type Timer = {
   id: string;
@@ -12,6 +11,14 @@ export type Timer = {
   isRunning: boolean;
 };
 
+export type DisplayNames = {
+  text: string;
+  styles: {
+    color: string;
+    bold: boolean;
+  };
+};
+
 export class Room {
   readonly roomId: string;
   readonly adminId: string;
@@ -19,11 +26,14 @@ export class Room {
   private adminSocketId: string | null = null;
   private clientSocketIds: Set<string> = new Set();
   private timers: Timer[] = [];
-  private message = {
-    text: "Welcome",
-    color: "#000000",
-    backgroundColor: "#ffffff",
+  private disPlayName = {
+    text: "",
+    styles: {
+      color: "#00FF00",
+      bold: false,
+    },
   };
+  private names: DisplayNames[] = [];
   private flickering: boolean | null = null;
 
   private io: Server;
@@ -35,21 +45,31 @@ export class Room {
   }
 
   // === MESSAGE HANDLING ===
-  public setMessage(
+  // runs when Show btn is clicked
+  public displayName(
     text: string,
     color: string,
-    backgroundColor: string,
+    bold: boolean,
     socketId: string
   ) {
     if (socketId !== this.adminSocketId) {
+      console.warn(`Unauthorized attempt to set display name by ${socketId}`);
       return;
     }
-    if (!text || !color || !backgroundColor) {
+    if (!text || !color) {
+      console.warn("Invalid display name parameters");
       return;
     }
     try {
-      this.message = { text, color, backgroundColor };
-      this.io.to(this.roomId).emit("messageUpdated", this.message);
+      this.disPlayName = {
+        text: text,
+        styles: {
+          color: color,
+          bold: bold,
+        },
+      };
+      console.log(`Display name set by ${socketId}:`, this.disPlayName);
+      this.io.to(this.roomId).emit("displayNameUpdated", this.disPlayName);
       console.log("message sent");
     } catch (error) {
       console.error("Error setting message:", error);
@@ -57,6 +77,43 @@ export class Room {
     }
   }
 
+  public setNames(names: DisplayNames[], socketId: string) {
+    if (socketId !== this.adminSocketId) {
+      return;
+    }
+    if (!Array.isArray(names) || names.length === 0) {
+      return;
+    }
+    try {
+      this.names = names.map((name) => ({
+        text: name.text,
+        styles: {
+          color: name.styles.color,
+          bold: name.styles.bold,
+        },
+      }));
+      this.io.to(this.roomId).emit("namesUpdated", this.names);
+      console.log("names updated");
+    } catch (error) {
+      console.error("Error updating names:", error);
+      return;
+    }
+  }
+
+  public updateNames(
+    index: number,
+    updates: Partial<DisplayNames>,
+    socketId: string
+  ) {
+    if (socketId !== this.adminSocketId) {
+      return;
+    }
+    this.names = this.names.map((name, i) =>
+      i === index ? { ...name, ...updates } : name
+    );
+    console.log(`Name at index ${index} updated by ${socketId}:`, updates);
+    console.log("Updated names:", this.names);
+  }
   public toggleFlicker(flickering: boolean, socketId: string) {
     if (socketId !== this.adminSocketId) {
       return;
@@ -248,7 +305,8 @@ export class Room {
       adminOnline: this.isAdminOnline(),
       clientCount: this.getConnectedClientCount(),
       timers: timersWithRemaining,
-      message: this.message,
+      displayName: this.disPlayName,
+      names: this.names,
       flickering: this.flickering,
     };
   }
