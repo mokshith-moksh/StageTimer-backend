@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { RoomManager } from "./RoomManager";
+import type { RoomDoc } from "./model/Room";
 
 export type Timer = {
   id: string;
@@ -38,10 +39,26 @@ export class Room {
 
   private io: Server;
 
-  constructor(roomId: string, adminId: string, _baseUrl: string, io: Server) {
+  constructor(
+    roomId: string,
+    adminId: string,
+    _baseUrl: string,
+    io: Server,
+    existingData?: RoomDoc
+  ) {
     this.roomId = roomId;
     this.adminId = adminId;
     this.io = io;
+
+    if (existingData) {
+      this.timers = existingData.timers ?? [];
+      this.disPlayName = existingData.displayName ?? {
+        text: "",
+        styles: { color: "#00FF00", bold: false },
+      };
+      this.names = existingData.names ?? [];
+      this.flickering = existingData.flickering ?? null;
+    }
   }
 
   // === MESSAGE HANDLING ===

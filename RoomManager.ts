@@ -1,3 +1,4 @@
+import { RoomModel } from "./model/Room";
 import { Room } from "./Room";
 import { Server } from "socket.io";
 
@@ -30,12 +31,31 @@ export class RoomManager {
     }, 1000);
   }
 
-  public createRoom(roomId: string, adminId: string, baseUrl: string): Room {
-    if (this.rooms.has(roomId)) {
-      throw new Error(`Room ${roomId} already exists`);
+  public async createRoom(
+    roomId: string,
+    adminId: string,
+    baseUrl: string
+  ): Promise<Room> {
+    let roomDoc = await RoomModel.findOne({ roomId });
+    console.log("Inside the createRoom model class , checkingg .....", roomDoc);
+    if (!roomDoc) {
+      roomDoc = await RoomModel.create({
+        roomId,
+        adminId, // clerkId
+        displayName: { text: "", styles: { color: "#00FF00", bold: false } },
+        timers: [],
+        names: [],
+        flickering: null,
+      });
     }
 
-    const room = new Room(roomId, adminId, baseUrl, this.io);
+    const room = new Room(
+      roomDoc.roomId,
+      roomDoc.adminId,
+      baseUrl,
+      this.io,
+      roomDoc.toObject() // pass all DB data for initialization
+    );
     this.rooms.set(roomId, room);
     return room;
   }

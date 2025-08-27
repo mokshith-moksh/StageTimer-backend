@@ -2,13 +2,13 @@ import { createServer } from "http";
 import express from "express";
 import { Server } from "socket.io";
 import { RoomManager } from "./RoomManager";
-import { nanoid } from "nanoid";
 import cors from "cors";
 import dotenv from "dotenv";
-import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
-import { Room, type DisplayNames } from "./Room";
-import prisma from "./lib/prisma";
-import { stringify } from "flatted";
+import { clerkMiddleware } from "@clerk/express";
+import { type DisplayNames } from "./Room";
+import connectDB from "./lib/db";
+import userRoutes from "./routes/userRoutes";
+import roomRouter from "./routes/roomRoutes";
 
 dotenv.config();
 
@@ -32,52 +32,18 @@ const io = new Server(httpServer, {
     credentials: true,
   },
 });
+connectDB();
 
-const roomManager = RoomManager.getInstance();
+export const roomManager = RoomManager.getInstance();
 roomManager.initialize(io);
 
-app.get("/get-room-da", (req, res) => {
+app.get("/get-server-state", (req, res) => {
   const rooms = roomManager.getAllRoomsDB();
   res.send(JSON.stringify(rooms));
 });
 
-app.post("/new-user", requireAuth(), async (req, res) => {
-  const { clerkId, email, firstName, lastName, imageUrl } = req.body;
-  console.log("New user data:", req.body);
-  try {
-    const existing = await prisma.user.findUnique({ where: { clerkId } });
-    if (!existing) {
-      await prisma.user.create({
-        data: { clerkId, email, firstName, lastName, imageUrl },
-      });
-    }
-    res.status(200).json({ success: true });
-  } catch (err) {
-    console.error("Error creating user:", err);
-    res.status(500).json({ error: "Failed to create user" });
-  }
-});
-
-app.post("/create-room", requireAuth(), async (req, res) => {
-  const { userId } = getAuth(req);
-  const { adminId } = req.body;
-
-  const roomId = nanoid(10);
-  try {
-    const room: Room = roomManager.createRoom(
-      roomId,
-      adminId,
-      `${req.protocol}://${req.get("host")}`
-    );
-    console.log("room Created Succussfully", room.roomId);
-    return res.status(201).json({
-      roomId,
-      url: `${req.protocol}://${req.get("host")}/controller/${roomId}`,
-    });
-  } catch (error) {
-    return res.status(500).json({ error: "Failed to create room" });
-  }
-});
+app.use("/api/users", userRoutes);
+app.use("/api/room", roomRouter);
 
 io.on("connection", (socket) => {
   console.log(`Client connected: ${socket.id}`);
