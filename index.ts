@@ -8,6 +8,7 @@ import dotenv from "dotenv";
 import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
 import { Room, type DisplayNames } from "./Room";
 import prisma from "./lib/prisma";
+import { stringify } from "flatted";
 
 dotenv.config();
 
@@ -35,8 +36,9 @@ const io = new Server(httpServer, {
 const roomManager = RoomManager.getInstance();
 roomManager.initialize(io);
 
-app.get("/", (req, res) => {
-  res.send("Welcome to the Video Call Server");
+app.get("/get-room-da", (req, res) => {
+  const rooms = roomManager.getAllRoomsDB();
+  res.send(JSON.stringify(rooms));
 });
 
 app.post("/new-user", requireAuth(), async (req, res) => {
@@ -80,11 +82,11 @@ app.post("/create-room", requireAuth(), async (req, res) => {
 io.on("connection", (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
-  socket.on("join-room", ({ roomId, role }) => {
+  socket.on("join-room", ({ roomId, name, role }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
 
-    room.addClient(socket.id, role);
+    room.addClient(socket.id, name, role);
     socket.join(roomId);
     const roomState = room.getState();
     socket.emit("room-joined", roomState);

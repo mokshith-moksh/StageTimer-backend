@@ -75,4 +75,23 @@ export class RoomManager {
   public getAllRooms(): Room[] {
     return Array.from(this.rooms.values());
   }
+
+  public getAllRoomsDB() {
+    const rooms = Array.from(this.rooms.values()).map((room) => {
+      const clientSocketIds = room["clientSocketIds"] as Map<string, string>;
+
+      return {
+        roomId: room["roomId"],
+        adminId: room["adminId"],
+        adminSocketId: (room as any).adminSocketId,
+        clientSocketIds: Object.fromEntries(clientSocketIds ?? []), // 🔥 converts Map -> object
+        timers: (room as any).timers ?? [],
+        disPlayName: (room as any).disPlayName,
+        names: (room as any).names ?? [],
+        flickering: (room as any).flickering,
+      };
+    });
+
+    return rooms;
+  }
 }

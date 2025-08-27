@@ -24,7 +24,7 @@ export class Room {
   readonly adminId: string;
 
   private adminSocketId: string | null = null;
-  private clientSocketIds: Set<string> = new Set();
+  private clientSocketIds: Map<string, string> = new Map();
   private timers: Timer[] = [];
   private disPlayName = {
     text: "",
@@ -123,11 +123,11 @@ export class Room {
   }
 
   // === CONNECTION TRACKING ===
-  public addClient(socketId: string, role: "admin" | "client") {
+  public addClient(socketId: string, name: string, role: "admin" | "client") {
     if (role === "admin") {
       this.adminSocketId = socketId;
     } else {
-      this.clientSocketIds.add(socketId);
+      this.clientSocketIds.set(socketId, name);
     }
   }
 
