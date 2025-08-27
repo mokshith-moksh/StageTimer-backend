@@ -159,9 +159,8 @@ export class Room {
       duration,
       isRunning: false,
     };
-
     this.timers.push(timer);
-    this.io.to(this.roomId).emit("timer-added", timer);
+    this.io.to(this.roomId).emit("timer-added", this.timers);
     return timer;
   }
 

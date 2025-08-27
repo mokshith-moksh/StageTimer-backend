@@ -7,6 +7,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { clerkMiddleware, requireAuth, getAuth } from "@clerk/express";
 import { Room, type DisplayNames } from "./Room";
+import prisma from "./lib/prisma";
 
 dotenv.config();
 
@@ -36,6 +37,23 @@ roomManager.initialize(io);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Video Call Server");
+});
+
+app.post("/new-user", requireAuth(), async (req, res) => {
+  const { clerkId, email, firstName, lastName, imageUrl } = req.body;
+  console.log("New user data:", req.body);
+  try {
+    const existing = await prisma.user.findUnique({ where: { clerkId } });
+    if (!existing) {
+      await prisma.user.create({
+        data: { clerkId, email, firstName, lastName, imageUrl },
+      });
+    }
+    res.status(200).json({ success: true });
+  } catch (err) {
+    console.error("Error creating user:", err);
+    res.status(500).json({ error: "Failed to create user" });
+  }
 });
 
 app.post("/create-room", requireAuth(), async (req, res) => {
