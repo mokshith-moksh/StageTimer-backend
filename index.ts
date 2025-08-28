@@ -43,14 +43,15 @@ app.get("/get-server-state", (req, res) => {
 });
 
 app.use("/api/users", userRoutes);
-app.use("/api/room", roomRouter);
+app.use("/api/rooms", roomRouter);
 
 io.on("connection", (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
   socket.on("join-room-socket", ({ roomId, name, role }) => {
     const room = roomManager.getRoom(roomId);
-    if (!room) return socket.emit("error", { message: "Room not found" });
+    if (!room)
+      return socket.emit("error", { message: "Refresh the page to connect" });
     room.addClient(socket.id, name, role);
     socket.join(roomId);
     const roomState = room.getState();
@@ -124,42 +125,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("setDisplayName", ({ roomId, text, color, bold }) => {
-    const room = roomManager.getRoom(roomId);
-    if (!room) return socket.emit("error", { message: "Room not found" });
-    room.displayName(text, color, bold, socket.id);
-  });
-
-  socket.on(
-    "setNames",
-    ({ roomId, names }: { roomId: string; names: DisplayNames[] }) => {
-      const room = roomManager.getRoom(roomId);
-      if (!room) return socket.emit("error", { message: "Room not found" });
-      room.setNames(names, socket.id);
-    }
-  );
-
-  socket.on(
-    "updateNames",
-    ({
-      roomId,
-      index,
-      updates,
-    }: {
-      roomId: string;
-      index: number;
-      updates: Partial<DisplayNames>;
-    }) => {
-      const room = roomManager.getRoom(roomId);
-      if (!room) return socket.emit("error", { message: "Room not found" });
-      room.updateNames(index, updates, socket.id);
-    }
-  );
-
-  socket.on("toggleFlicker", ({ roomId, flickering }) => {
-    const room = roomManager.getRoom(roomId);
-    if (!room) return socket.emit("error", { message: "Room not found" });
-    room.toggleFlicker(flickering, socket.id);
+  socket.on("liveMsgUpdate", ({ roomId, message }) => {
+    io.to(roomId).emit("liveMsgUpdate", { message });
   });
 
   socket.on("disconnect", () => {

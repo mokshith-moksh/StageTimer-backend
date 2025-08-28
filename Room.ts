@@ -1,7 +1,7 @@
 import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { RoomManager } from "./RoomManager";
-import type { RoomDoc } from "./model/Room";
+import { RoomModel, type RoomDoc } from "./model/Room";
 
 export type Timer = {
   id: string;
@@ -13,6 +13,7 @@ export type Timer = {
 };
 
 export type DisplayNames = {
+  id: string;
   text: string;
   styles: {
     color: string;
@@ -27,15 +28,6 @@ export class Room {
   private adminSocketId: string | null = null;
   private clientSocketIds: Map<string, string> = new Map();
   private timers: Timer[] = [];
-  private disPlayName = {
-    text: "",
-    styles: {
-      color: "#00FF00",
-      bold: false,
-    },
-  };
-  private names: DisplayNames[] = [];
-  private flickering: boolean | null = null;
 
   private io: Server;
 
@@ -53,91 +45,7 @@ export class Room {
 
     if (existingData) {
       this.timers = existingData.timers ?? [];
-      this.disPlayName = existingData.displayName ?? {
-        text: "",
-        styles: { color: "#00FF00", bold: false },
-      };
-      this.names = existingData.names ?? [];
-      this.flickering = existingData.flickering ?? null;
     }
-  }
-
-  // === MESSAGE HANDLING ===
-  // runs when Show btn is clicked
-  public displayName(
-    text: string,
-    color: string,
-    bold: boolean,
-    socketId: string
-  ) {
-    if (socketId !== this.adminSocketId) {
-      console.warn(`Unauthorized attempt to set display name by ${socketId}`);
-      return;
-    }
-    if (!text || !color) {
-      console.warn("Invalid display name parameters");
-      return;
-    }
-    try {
-      this.disPlayName = {
-        text: text,
-        styles: {
-          color: color,
-          bold: bold,
-        },
-      };
-      console.log(`Display name set by ${socketId}:`, this.disPlayName);
-      this.io.to(this.roomId).emit("displayNameUpdated", this.disPlayName);
-      console.log("message sent");
-    } catch (error) {
-      console.error("Error setting message:", error);
-      return;
-    }
-  }
-
-  public setNames(names: DisplayNames[], socketId: string) {
-    if (socketId !== this.adminSocketId) {
-      return;
-    }
-    if (!Array.isArray(names) || names.length === 0) {
-      return;
-    }
-    try {
-      this.names = names.map((name) => ({
-        text: name.text,
-        styles: {
-          color: name.styles.color,
-          bold: name.styles.bold,
-        },
-      }));
-      this.io.to(this.roomId).emit("namesUpdated", this.names);
-      console.log("names updated");
-    } catch (error) {
-      console.error("Error updating names:", error);
-      return;
-    }
-  }
-
-  public updateNames(
-    index: number,
-    updates: Partial<DisplayNames>,
-    socketId: string
-  ) {
-    if (socketId !== this.adminSocketId) {
-      return;
-    }
-    this.names = this.names.map((name, i) =>
-      i === index ? { ...name, ...updates } : name
-    );
-    console.log(`Name at index ${index} updated by ${socketId}:`, updates);
-    console.log("Updated names:", this.names);
-  }
-  public toggleFlicker(flickering: boolean, socketId: string) {
-    if (socketId !== this.adminSocketId) {
-      return;
-    }
-    this.flickering = flickering;
-    this.io.to(this.roomId).emit("flickeringToggled", this.flickering);
   }
 
   // === CONNECTION TRACKING ===
@@ -170,15 +78,31 @@ export class Room {
   }
 
   // === TIMER HANDLING ===
-  public addTimer(duration: number, name: string) {
+  public async addTimer(duration: number, name: string) {
     const timer: Timer = {
       id: uuidv4(),
       name,
       duration,
       isRunning: false,
     };
+
+    // 1. Persist in DB first
+    const updated = await RoomModel.findOneAndUpdate(
+      { roomId: this.roomId },
+      { $push: { timers: timer } },
+      { new: true } // return updated doc
+    );
+
+    if (!updated) {
+      throw new Error("Room not found while adding timer");
+    }
+
+    // 2. Sync in-memory state from DB
     this.timers.push(timer);
+
+    // 3. Emit
     this.io.to(this.roomId).emit("timer-added", this.timers);
+
     return timer;
   }
 
@@ -310,6 +234,12 @@ export class Room {
     }
   }
 
+  public getClientsArray() {
+    return Array.from(this.clientSocketIds, ([userId, socketId]) => ({
+      userId,
+      socketId,
+    }));
+  }
   public getState() {
     const timersWithRemaining = this.timers.map((timer) => {
       const remaining = this.getRemainingTime(timer);
@@ -322,10 +252,8 @@ export class Room {
       roomName: this.roomName,
       adminOnline: this.isAdminOnline(),
       clientCount: this.getConnectedClientCount(),
+      connectedClients: this.getClientsArray(),
       timers: timersWithRemaining,
-      displayName: this.disPlayName,
-      names: this.names,
-      flickering: this.flickering,
     };
   }
 }
