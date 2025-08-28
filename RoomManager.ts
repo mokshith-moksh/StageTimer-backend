@@ -42,6 +42,7 @@ export class RoomManager {
       roomDoc = await RoomModel.create({
         roomId,
         adminId, // clerkId
+        roomName: "Unnamed",
         displayName: { text: "", styles: { color: "#00FF00", bold: false } },
         timers: [],
         names: [],
@@ -54,6 +55,7 @@ export class RoomManager {
       roomDoc.adminId,
       baseUrl,
       this.io,
+      roomDoc.roomName,
       roomDoc.toObject() // pass all DB data for initialization
     );
     this.rooms.set(roomId, room);

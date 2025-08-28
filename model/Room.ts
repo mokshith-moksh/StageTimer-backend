@@ -20,6 +20,7 @@ export type DisplayName = {
 export interface RoomDoc extends Document {
   roomId: string;
   adminId: string;
+  roomName: string;
   timers: Timer[];
   displayName: DisplayName;
   names: DisplayName[];
@@ -55,6 +56,7 @@ const RoomSchema = new Schema<RoomDoc>(
   {
     roomId: { type: String, required: true, unique: true },
     adminId: { type: String, required: true },
+    roomName: { type: String, required: false, default: "Unnamed" },
     timers: { type: [TimerSchema], default: [] },
     displayName: {
       type: DisplayNameSchema,

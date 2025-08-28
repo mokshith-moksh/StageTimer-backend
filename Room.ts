@@ -23,7 +23,7 @@ export type DisplayNames = {
 export class Room {
   readonly roomId: string;
   readonly adminId: string;
-
+  private roomName: string = "Unnamed";
   private adminSocketId: string | null = null;
   private clientSocketIds: Map<string, string> = new Map();
   private timers: Timer[] = [];
@@ -44,11 +44,13 @@ export class Room {
     adminId: string,
     _baseUrl: string,
     io: Server,
+    roomName: string,
     existingData?: RoomDoc
   ) {
     this.roomId = roomId;
     this.adminId = adminId;
     this.io = io;
+    this.roomName = roomName;
 
     if (existingData) {
       this.timers = existingData.timers ?? [];
