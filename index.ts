@@ -48,15 +48,12 @@ app.use("/api/room", roomRouter);
 io.on("connection", (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
-  socket.on("join-room", ({ roomId, name, role }) => {
+  socket.on("join-room-socket", ({ roomId, name, role }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
-
     room.addClient(socket.id, name, role);
     socket.join(roomId);
     const roomState = room.getState();
-    socket.emit("room-joined", roomState);
-
     io.to(room.roomId).emit("roomState", { roomState });
   });
 

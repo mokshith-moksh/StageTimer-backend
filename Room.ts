@@ -42,7 +42,6 @@ export class Room {
   constructor(
     roomId: string,
     adminId: string,
-    _baseUrl: string,
     io: Server,
     roomName: string,
     existingData?: RoomDoc
@@ -320,6 +319,7 @@ export class Room {
     return {
       roomId: this.roomId,
       adminId: this.adminId,
+      roomName: this.roomName,
       adminOnline: this.isAdminOnline(),
       clientCount: this.getConnectedClientCount(),
       timers: timersWithRemaining,

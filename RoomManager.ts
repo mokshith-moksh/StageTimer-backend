@@ -31,11 +31,7 @@ export class RoomManager {
     }, 1000);
   }
 
-  public async createRoom(
-    roomId: string,
-    adminId: string,
-    baseUrl: string
-  ): Promise<Room> {
+  public async createRoom(roomId: string, adminId: string): Promise<Room> {
     let roomDoc = await RoomModel.findOne({ roomId });
     console.log("Inside the createRoom model class , checkingg .....", roomDoc);
     if (!roomDoc) {
@@ -53,7 +49,6 @@ export class RoomManager {
     const room = new Room(
       roomDoc.roomId,
       roomDoc.adminId,
-      baseUrl,
       this.io,
       roomDoc.roomName,
       roomDoc.toObject() // pass all DB data for initialization
