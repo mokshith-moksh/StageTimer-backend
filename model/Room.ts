@@ -9,14 +9,13 @@ export type Timer = {
   isRunning: boolean;
 };
 
-export type Displaymessage = {
+export type Messages = {
   id: string;
   text: string;
   styles: {
     color: string;
     bold: boolean;
   };
-  isLive: boolean;
 };
 
 export interface RoomDoc extends Document {
@@ -24,7 +23,8 @@ export interface RoomDoc extends Document {
   adminId: string;
   roomName: string;
   timers: Timer[];
-  messages: Displaymessage[];
+  messages: Messages[];
+  activeMessageId?: string | null; // NEW field for live message
   flickering?: boolean | null;
   createdAt: Date;
   updatedAt: Date;
@@ -42,7 +42,7 @@ const TimerSchema = new Schema<Timer>(
   { _id: false }
 );
 
-const DisplayMessageSchema = new Schema<Displaymessage>(
+const DisplayMessageSchema = new Schema<Messages>(
   {
     id: { type: String, required: true, unique: true },
     text: { type: String, required: false, default: "" },
@@ -50,7 +50,6 @@ const DisplayMessageSchema = new Schema<Displaymessage>(
       color: { type: String, required: true },
       bold: { type: Boolean, required: true },
     },
-    isLive: { type: Boolean, required: true, default: false },
   },
   { _id: false }
 );
@@ -62,6 +61,7 @@ const RoomSchema = new Schema<RoomDoc>(
     roomName: { type: String, required: false, default: "Unnamed" },
     timers: { type: [TimerSchema], default: [] },
     messages: { type: [DisplayMessageSchema], default: [] },
+    activeMessageId: { type: String, default: null }, // <--- add this
     flickering: { type: Boolean, default: null },
   },
   { timestamps: true }

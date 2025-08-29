@@ -1,14 +1,14 @@
 import { createServer } from "http";
 import express from "express";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { RoomManager } from "./RoomManager";
 import cors from "cors";
 import dotenv from "dotenv";
 import { clerkMiddleware } from "@clerk/express";
-import { type DisplayNames } from "./Room";
 import connectDB from "./lib/db";
 import userRoutes from "./routes/userRoutes";
 import roomRouter from "./routes/roomRoutes";
+import type { MessageUpdates } from "./Room";
 
 dotenv.config();
 
@@ -74,7 +74,7 @@ io.on("connection", (socket) => {
     console.log("timer", timer);
   });
 
-  socket.on("start-timer", ({ roomId, timerId }) => {
+  socket.on("start-timer", ({ roomId, timerId, adminId }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
 
@@ -86,7 +86,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("pause-timer", ({ roomId, timerId }) => {
+  socket.on("pause-timer", ({ roomId, timerId, adminId }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
 
@@ -94,7 +94,7 @@ io.on("connection", (socket) => {
     io.to(room.roomId).emit("timer-paused", { timerId });
   });
 
-  socket.on("reset-timer", ({ roomId, timerId }) => {
+  socket.on("reset-timer", ({ roomId, timerId, adminId }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
 
@@ -102,7 +102,7 @@ io.on("connection", (socket) => {
     io.to(room.roomId).emit("timer-reset", { timerId });
   });
 
-  socket.on("restart-timer", ({ roomId, timerId }) => {
+  socket.on("restart-timer", ({ roomId, timerId, adminId }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
 
@@ -110,7 +110,7 @@ io.on("connection", (socket) => {
     io.to(room.roomId).emit("timer-restarted", { timerId });
   });
 
-  socket.on("delete-timer", ({ roomId, timerId }) => {
+  socket.on("delete-timer", ({ roomId, timerId, adminId }) => {
     const room = roomManager.getRoom(roomId);
     if (!room) return socket.emit("error", { message: "Room not found" });
 
@@ -118,15 +118,82 @@ io.on("connection", (socket) => {
     io.to(room.roomId).emit("timer-deleted", { timerId });
   });
 
-  socket.on("setTimerTime", ({ roomId, timerId, newTime }) => {
+  socket.on("setTimerTime", ({ roomId, timerId, newTime, adminId }) => {
     const room = roomManager.getRoom(roomId);
     if (room && room.isAdminOnline()) {
       room.setTimerTime(timerId, newTime);
     }
   });
 
-  socket.on("liveMsgUpdate", ({ roomId, message }) => {
-    io.to(roomId).emit("liveMsgUpdate", { message });
+  socket.on("createMsg", ({ roomId, adminId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) {
+      console.error("Room is not present for creating Msg");
+      return socket.emit("error", {
+        message: "Room is not present for creaing Msg",
+      });
+    }
+    room.createMessage(socket);
+  });
+
+  socket.on("getMsg", ({ roomId, adminId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) {
+      console.error("Room is not present for creating Msg");
+      return socket.emit("error", {
+        message: "Room is not present for creaing Msg",
+      });
+    }
+    room.getMessages(socket);
+  });
+
+  socket.on(
+    "updateMsg",
+    ({
+      roomId,
+      messageId,
+      updates,
+    }: {
+      roomId: string;
+      messageId: string;
+      updates: MessageUpdates;
+    }) => {
+      const room = roomManager.getRoom(roomId);
+      if (!room) {
+        console.error("Room is not present for creating Msg");
+        return socket.emit("error", {
+          message: "Room is not present for creaing Msg",
+        });
+      }
+      room.updateMessage(messageId, updates, socket);
+    }
+  );
+
+  socket.on("deleteMsg", ({ roomId, adminId, messageId }) => {
+    const room = roomManager.getRoom(roomId);
+    if (!room) {
+      console.error("Room is not present for creating Msg");
+      return socket.emit("error", {
+        message: "Room is not present for creaing Msg",
+      });
+    }
+    room.deleteMessage(messageId, socket);
+  });
+
+  socket.on("toggleActive", ({ roomId, adminId, messageId }) => {
+    const room = roomManager.getRoom(roomId);
+    console.log(roomId, "RoomId");
+    if (!room) {
+      console.error("Room is not present for creating Msg");
+      return socket.emit("error", {
+        message: "Room is not present for creaing Msg",
+      });
+    }
+    if (room.adminId != adminId) {
+      console.error("Unauthorized access");
+      socket.emit("error", { message: "Unauthorized access" });
+    }
+    room.toggleActiveMessage(messageId);
   });
 
   socket.on("disconnect", () => {

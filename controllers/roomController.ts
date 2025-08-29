@@ -64,6 +64,7 @@ export const joinRoomByExistingId = async (req: Request, res: Response) => {
   }
 };
 
+/* 
 export const createMessage = async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
@@ -93,7 +94,6 @@ export const createMessage = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Get all messages
 export const getMessages = async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
@@ -109,41 +109,6 @@ export const getMessages = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Update a message (by message.id)
-export const updateMessage = async (req: Request, res: Response) => {
-  try {
-    const { roomId, messageId } = req.params;
-    const { text, styles, isLive } = req.body;
-
-    const room = await RoomModel.findOne({ roomId });
-    if (!room) {
-      return res.status(404).json({ error: "Room not found" });
-    }
-
-    const message = room.messages.find((m) => m.id === messageId);
-    if (!message) {
-      return res.status(404).json({ error: "Message not found" });
-    }
-
-    // Update fields if they are provided in the request
-    if (text !== undefined) message.text = text;
-
-    if (styles !== undefined) {
-      // Validate and update styles
-      if (styles.color !== undefined) message.styles.color = styles.color;
-      if (styles.bold !== undefined) message.styles.bold = styles.bold;
-    }
-
-    if (isLive !== undefined) message.isLive = isLive;
-
-    await room.save();
-    res.json(message);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// ✅ Delete a message (by message.id)
 export const deleteMessage = async (req: Request, res: Response) => {
   try {
     const { roomId, messageId } = req.params;
@@ -166,3 +131,32 @@ export const deleteMessage = async (req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 };
+export const updateMessage = async (req: Request, res: Response) => {
+  try {
+    const { roomId, messageId } = req.params;
+    const { text, styles, isLive } = req.body;
+
+    const room = await RoomModel.findOne({ roomId });
+    if (!room) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+
+    const message = room.messages.find((m) => m.id === messageId);
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    if (text !== undefined) message.text = text;
+
+    if (styles !== undefined) {
+      // Validate and update styles
+      if (styles.color !== undefined) message.styles.color = styles.color;
+      if (styles.bold !== undefined) message.styles.bold = styles.bold;
+    }
+    await room.save();
+    res.json(message);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+ */

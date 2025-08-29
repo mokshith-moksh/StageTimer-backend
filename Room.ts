@@ -2,6 +2,7 @@ import { Server } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import { RoomManager } from "./RoomManager";
 import { RoomModel, type RoomDoc } from "./model/Room";
+import { Socket } from "socket.io";
 
 export type Timer = {
   id: string;
@@ -12,7 +13,7 @@ export type Timer = {
   isRunning: boolean;
 };
 
-export type DisplayNames = {
+export type Messages = {
   id: string;
   text: string;
   styles: {
@@ -20,6 +21,13 @@ export type DisplayNames = {
     bold: boolean;
   };
 };
+export type MessageUpdates = Partial<{
+  text: string;
+  styles: {
+    color: string;
+    bold: boolean;
+  };
+}>;
 
 export class Room {
   readonly roomId: string;
@@ -28,7 +36,8 @@ export class Room {
   private adminSocketId: string | null = null;
   private clientSocketIds: Map<string, string> = new Map();
   private timers: Timer[] = [];
-
+  private activeMessage: string | null = null;
+  private messages: Messages[] = [];
   private io: Server;
 
   constructor(
@@ -45,6 +54,7 @@ export class Room {
 
     if (existingData) {
       this.timers = existingData.timers ?? [];
+      this.roomName = existingData.roomName;
     }
   }
 
@@ -232,6 +242,101 @@ export class Room {
       this.pauseTimer(timer.id);
       this.io.to(this.roomId).emit("timerEnded", { timerId: timer.id });
     }
+  }
+
+  // ============= MESSAGE CRUD =================
+
+  /** Create a new message */
+  async createMessage(socket: Socket) {
+    const message: Messages = {
+      id: uuidv4(),
+      text: " ",
+      styles: {
+        bold: false,
+        color: "#fffff",
+      },
+    };
+    this.messages.push(message);
+    await RoomModel.updateOne(
+      { roomId: this.roomId },
+      { $push: { messages: message } }
+    );
+    socket.emit("messagesUpdated", {
+      messages: this.messages,
+    });
+  }
+
+  async updateMessage(
+    messageId: string,
+    updates: MessageUpdates,
+    socket: Socket
+  ) {
+    const idx = this.messages.findIndex((m) => m.id === messageId);
+    if (idx === -1) return null;
+    if (this.messages[idx]) {
+      this.messages[idx] = { ...this.messages[idx], ...updates };
+      await RoomModel.updateOne(
+        { roomId: this.roomId, "messages.id": messageId },
+        { $set: { "messages.$": this.messages[idx] } }
+      );
+
+      socket.emit("messagesUpdated", this.messages[idx]);
+    }
+  }
+
+  /** Delete a message */
+  async deleteMessage(messageId: string, socket: Socket) {
+    this.messages = this.messages.filter((m) => m.id !== messageId);
+    if (this.activeMessage === messageId) {
+      this.activeMessage = null;
+      await RoomModel.updateOne(
+        { roomId: this.roomId },
+        {
+          $set: { activeMessageId: null },
+          $pull: { messages: { id: messageId } },
+        }
+      );
+    } else {
+      await RoomModel.updateOne(
+        { roomId: this.roomId },
+        { $pull: { messages: { id: messageId } } }
+      );
+    }
+    socket.emit("messageUpdated", this.messages);
+  }
+
+  /** Get all messages */
+  async getMessages(socket: Socket) {
+    if (this.messages.length === 0) {
+      const room = await RoomModel.findOne({ roomId: this.roomId });
+      if (room) {
+        this.messages = room.messages;
+        this.activeMessage = room.activeMessageId ?? null;
+      }
+    }
+    socket.emit("messageUpdated", { messages: this.messages });
+  }
+
+  /** Toggle active message */
+  async toggleActiveMessage(messageId: string) {
+    if (this.activeMessage === messageId) {
+      this.activeMessage = null;
+    } else {
+      this.activeMessage = messageId;
+    }
+
+    // DB update
+    await RoomModel.updateOne(
+      { roomId: this.roomId },
+      { $set: { activeMessageId: this.activeMessage } }
+    );
+
+    // Broadcast
+    const messages = this.messages;
+    this.io.to(this.roomId).emit("activeMessageUpdated", {
+      activeMessageId: this.activeMessage,
+      messages,
+    });
   }
 
   public getClientsArray() {
