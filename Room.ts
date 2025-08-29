@@ -111,7 +111,8 @@ export class Room {
     this.timers.push(timer);
 
     // 3. Emit
-    this.io.to(this.roomId).emit("timer-added", this.timers);
+    const roomState = this.getState();
+    this.io.to(this.roomId).emit("roomState", { roomState });
 
     return timer;
   }
@@ -225,11 +226,8 @@ export class Room {
     }
 
     const remaining = this.getRemainingTime(timer);
-    this.io.to(this.roomId).emit("timerTimeAdjusted", {
-      timerId,
-      remaining,
-      isRunning: timer.isRunning,
-    });
+    const roomState = this.getState();
+    this.io.to(this.roomId).emit("roomState", { roomState });
   }
 
   public tickTimers(now: number) {
@@ -265,9 +263,8 @@ export class Room {
       { roomId: this.roomId },
       { $push: { messages: message } }
     );
-    socket.emit("messagesUpdated", {
-      messages: this.messages,
-    });
+    const roomState = this.getState();
+    this.io.to(this.roomId).emit("roomState", { roomState });
   }
 
   async updateMessage(
@@ -284,7 +281,8 @@ export class Room {
         { $set: { "messages.$": this.messages[idx] } }
       );
 
-      socket.emit("messagesUpdated", this.messages[idx]);
+      const roomState = this.getState();
+      this.io.to(this.roomId).emit("roomState", { roomState });
     }
   }
 
@@ -306,7 +304,8 @@ export class Room {
         { $pull: { messages: { id: messageId } } }
       );
     }
-    socket.emit("messageUpdated", this.messages);
+    const roomState = this.getState();
+    this.io.to(this.roomId).emit("roomState", { roomState });
   }
 
   /** Get all messages */
@@ -318,7 +317,8 @@ export class Room {
         this.activeMessage = room.activeMessageId ?? null;
       }
     }
-    socket.emit("messageUpdated", { messages: this.messages });
+    const roomState = this.getState();
+    this.io.to(this.roomId).emit("roomState", { roomState });
   }
 
   /** Toggle active message */
@@ -358,6 +358,7 @@ export class Room {
     return {
       roomId: this.roomId,
       adminId: this.adminId,
+      adminSocketId: this.adminSocketId,
       roomName: this.roomName,
       adminOnline: this.isAdminOnline(),
       clientCount: this.getConnectedClientCount(),

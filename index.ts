@@ -80,7 +80,8 @@ io.on("connection", (socket) => {
 
     try {
       room.startTimer(timerId);
-      io.to(room.roomId).emit("timer-started", { timerId });
+      const roomState = room.getState();
+      io.to(room.roomId).emit("roomState", { roomState });
     } catch (err) {
       socket.emit("error", { message: (err as Error).message });
     }
@@ -91,7 +92,8 @@ io.on("connection", (socket) => {
     if (!room) return socket.emit("error", { message: "Room not found" });
 
     room.pauseTimer(timerId);
-    io.to(room.roomId).emit("timer-paused", { timerId });
+    const roomState = room.getState();
+    io.to(room.roomId).emit("roomState", { roomState });
   });
 
   socket.on("reset-timer", ({ roomId, timerId, adminId }) => {
@@ -99,7 +101,8 @@ io.on("connection", (socket) => {
     if (!room) return socket.emit("error", { message: "Room not found" });
 
     room.resetTimer(timerId);
-    io.to(room.roomId).emit("timer-reset", { timerId });
+    const roomState = room.getState();
+    io.to(room.roomId).emit("roomState", { roomState });
   });
 
   socket.on("restart-timer", ({ roomId, timerId, adminId }) => {
@@ -107,7 +110,8 @@ io.on("connection", (socket) => {
     if (!room) return socket.emit("error", { message: "Room not found" });
 
     room.restartTimer(timerId);
-    io.to(room.roomId).emit("timer-restarted", { timerId });
+    const roomState = room.getState();
+    io.to(room.roomId).emit("roomState", { roomState });
   });
 
   socket.on("delete-timer", ({ roomId, timerId, adminId }) => {
@@ -115,7 +119,8 @@ io.on("connection", (socket) => {
     if (!room) return socket.emit("error", { message: "Room not found" });
 
     room.deleteTimer(timerId);
-    io.to(room.roomId).emit("timer-deleted", { timerId });
+    const roomState = room.getState();
+    io.to(room.roomId).emit("roomState", { roomState });
   });
 
   socket.on("setTimerTime", ({ roomId, timerId, newTime, adminId }) => {
