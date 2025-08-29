@@ -122,6 +122,10 @@ export class Room {
   }
 
   public startTimer(timerId: string) {
+    const runingTimer = this.timers.find((timer) => timer.isRunning == true);
+    if (runingTimer) {
+      this.pauseTimer(runingTimer.id);
+    }
     const timer = this.timers.find((t) => t.id === timerId);
     if (!timer) throw new Error("Timer not found");
     if (timer.isRunning) return;
