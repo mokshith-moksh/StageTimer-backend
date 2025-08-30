@@ -138,6 +138,7 @@ io.on("connection", (socket) => {
         message: "Room is not present for creaing Msg",
       });
     }
+    console.log("room msg creation started");
     room.createMessage(socket);
   });
 
@@ -198,6 +199,7 @@ io.on("connection", (socket) => {
       console.error("Unauthorized access");
       socket.emit("error", { message: "Unauthorized access" });
     }
+    console.log("Reached toggle ");
     room.toggleActiveMessage(messageId);
   });
 

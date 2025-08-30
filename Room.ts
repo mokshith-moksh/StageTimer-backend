@@ -265,6 +265,7 @@ export class Room {
     );
     const roomState = this.getState();
     this.io.to(this.roomId).emit("roomState", { roomState });
+    console.log("roomState", roomState);
   }
 
   async updateMessage(
@@ -336,11 +337,9 @@ export class Room {
     );
 
     // Broadcast
-    const messages = this.messages;
-    this.io.to(this.roomId).emit("activeMessageUpdated", {
-      activeMessageId: this.activeMessage,
-      messages,
-    });
+    const roomState = this.getState();
+    console.log(roomState, "toogle");
+    this.io.to(this.roomId).emit("roomState", { roomState });
   }
 
   public getClientsArray() {
@@ -364,6 +363,8 @@ export class Room {
       clientCount: this.getConnectedClientCount(),
       connectedClients: this.getClientsArray(),
       timers: timersWithRemaining,
+      messages: this.messages,
+      activeMessage: this.activeMessage,
     };
   }
 }
